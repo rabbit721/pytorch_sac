@@ -14,6 +14,11 @@ import imageio
 from scipy import misc
 misc.imread = imageio.imread
 
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+else:
+    device = torch.device("cpu")
+
 def get_indexed_embeddings(obj_id_to_embedding, vocab_size):
     embed_size = len(list(obj_id_to_embedding.items())[0][1])
     indexed_embedding_map = np.zeros(shape=(vocab_size, embed_size))
@@ -23,12 +28,12 @@ def get_indexed_embeddings(obj_id_to_embedding, vocab_size):
 
 def get_text_state(grid_state, indexed_embedding_map):
     if len(grid_state.shape) > 2:
-        text_state = indexed_embedding_map[np.array(grid_state).astype(int)]
+        text_state = indexed_embedding_map[grid_state.data.cpu().numpy().astype(int)]
         # print("text_state.shape", text_state.shape)
         _, w, h, c = text_state.shape
         return np.moveaxis(text_state, [0, 1, 2, 3], [0, 2, 3, 1])
     else:
-        text_state = indexed_embedding_map[np.array(grid_state).astype(int)]
+        text_state = indexed_embedding_map[grid_state.data.cpu().numpy().astype(int)]
         # print(text_state.shape)
         return np.moveaxis(text_state, [0, 1, 2], [1, 2, 0])
 
@@ -36,7 +41,7 @@ class SACAgent(Agent):
     """SAC algorithm."""
     def __init__(self, obj_id_to_embedding_file, vocab_size,
                  state_embed_size, text_embed_size, obs_dim,
-                 action_range, action_dim, device, critic_cfg, actor_cfg,
+                 action_range, action_dim, critic_cfg, actor_cfg,
                  fusion_cfg, discount, init_temperature, fusion_lr,
                  fusion_betas, alpha_lr, alpha_betas,
                  actor_lr, actor_betas, actor_update_frequency, critic_lr,
@@ -45,7 +50,7 @@ class SACAgent(Agent):
         super().__init__()
 
         self.action_range = action_range
-        self.device = torch.device(device)
+        self.device = device
         self.discount = discount
         self.critic_tau = critic_tau
         self.actor_update_frequency = actor_update_frequency
@@ -57,8 +62,7 @@ class SACAgent(Agent):
         self.indexed_embedding_map = get_indexed_embeddings(self.obj_id_to_embedding, vocab_size)
 
         self.critic = hydra.utils.instantiate(critic_cfg).to(self.device)
-        self.critic_target = hydra.utils.instantiate(critic_cfg).to(
-            self.device)
+        self.critic_target = hydra.utils.instantiate(critic_cfg).to(self.device)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         self.fusion = hydra.utils.instantiate(fusion_cfg).to(self.device)

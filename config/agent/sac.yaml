@@ -9,7 +9,6 @@ agent:
     obs_dim: ??
     action_range: ??
     action_dim: ??
-    device: ${device}
     critic_cfg: ${double_q_critic}
     actor_cfg: ${diag_gaussian_actor}
     fusion_cfg: ${fusion_model}

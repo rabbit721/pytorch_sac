@@ -28,6 +28,10 @@ import imageio
 from scipy import misc
 misc.imread = imageio.imread
 
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+else:
+    device = torch.device("cpu")
 
 def get_grid_state(env):
     grid = env.env.GVGAI.sso.observationGrid
@@ -64,14 +68,9 @@ class Workspace(object):
         self.work_dir = os.getcwd()
         print(f'workspace: {self.work_dir}')
 
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
-        else:
-            self.device = torch.device("cpu")
-
         self.cfg = cfg
         self.observation_space_shape = (16, 16)
-
+        self.device = device
         self.logger = Logger(self.work_dir,
                              save_tb=cfg.log_save_tb,
                              log_frequency=cfg.log_frequency,

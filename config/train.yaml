@@ -14,8 +14,6 @@ num_seed_steps: 50 #5000
 eval_frequency: 10 # 10000
 num_eval_episodes: 2
 
-device: cpu
-
 # logger
 log_frequency: 100 # 10000
 log_save_tb: true
