@@ -3,17 +3,38 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import pickle
 
 from agent import Agent
 import utils
 
 import hydra
 
+def get_indexed_embeddings(obj_id_to_embedding, vocab_size):
+    embed_size = len(list(obj_id_to_embedding.items())[0][1])
+    indexed_embedding_map = np.zeros(shape=(vocab_size, embed_size))
+    for obj_id in obj_id_to_embedding:
+        indexed_embedding_map[obj_id] = obj_id_to_embedding[obj_id]
+    return indexed_embedding_map
+
+def get_text_state(grid_state, indexed_embedding_map):
+    if len(grid_state.shape) > 2:
+        text_state = indexed_embedding_map[np.array(grid_state).astype(int)]
+        # print("text_state.shape", text_state.shape)
+        _, w, h, c = text_state.shape
+        return np.moveaxis(text_state, [0, 1, 2, 3], [0, 2, 3, 1])
+    else:
+        text_state = indexed_embedding_map[np.array(grid_state).astype(int)]
+        # print(text_state.shape)
+        return np.moveaxis(text_state, [0, 1, 2], [1, 2, 0])
 
 class SACAgent(Agent):
     """SAC algorithm."""
-    def __init__(self, obs_dim, action_dim, action_range, device, critic_cfg,
-                 actor_cfg, discount, init_temperature, alpha_lr, alpha_betas,
+    def __init__(self, obj_id_to_embedding_file, vocab_size,
+                 state_embed_size, text_embed_size, obs_dim,
+                 action_range, action_dim, device, critic_cfg, actor_cfg,
+                 fusion_cfg, discount, init_temperature, fusion_lr,
+                 fusion_betas, alpha_lr, alpha_betas,
                  actor_lr, actor_betas, actor_update_frequency, critic_lr,
                  critic_betas, critic_tau, critic_target_update_frequency,
                  batch_size, learnable_temperature):
@@ -28,10 +49,15 @@ class SACAgent(Agent):
         self.batch_size = batch_size
         self.learnable_temperature = learnable_temperature
 
+        self.obj_id_to_embedding = pickle.load(open(obj_id_to_embedding_file, 'rb'))
+        self.indexed_embedding_map = get_indexed_embeddings(self.obj_id_to_embedding, vocab_size)
+
         self.critic = hydra.utils.instantiate(critic_cfg).to(self.device)
         self.critic_target = hydra.utils.instantiate(critic_cfg).to(
             self.device)
         self.critic_target.load_state_dict(self.critic.state_dict())
+
+        self.fusion = hydra.utils.instantiate(fusion_cfg).to(self.device)
 
         self.actor = hydra.utils.instantiate(actor_cfg).to(self.device)
 
@@ -41,6 +67,10 @@ class SACAgent(Agent):
         self.target_entropy = -action_dim
 
         # optimizers
+        self.fusion_optimizer = torch.optim.Adam(self.fusion.parameters(),
+                                                lr=fusion_lr,
+                                                betas=fusion_betas)
+
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
                                                 lr=actor_lr,
                                                 betas=actor_betas)
@@ -58,6 +88,7 @@ class SACAgent(Agent):
 
     def train(self, training=True):
         self.training = training
+        self.fusion.train(training)
         self.actor.train(training)
         self.critic.train(training)
 
@@ -66,43 +97,61 @@ class SACAgent(Agent):
         return self.log_alpha.exp()
 
     def act(self, obs, sample=False):
-        obs = torch.FloatTensor(obs).to(self.device)
-        obs = obs.unsqueeze(0)
-        dist = self.actor(obs)
+        grid_state = torch.from_numpy(obs).unsqueeze(0).long().to(self.device)
+        text_state = torch.from_numpy(get_text_state(grid_state, self.indexed_embedding_map)).float().to(self.device)
+        dist = self.actor(self.fusion((grid_state, text_state)))
         action = dist.sample() if sample else dist.mean
         action = action.clamp(*self.action_range)
-        assert action.ndim == 2 and action.shape[0] == 1
+        # assert action.ndim == 2 and action.shape[0] == 1
         return utils.to_np(action[0])
 
     def update_critic(self, obs, action, reward, next_obs, not_done, logger,
                       step):
-        dist = self.actor(next_obs)
+        # print("obs.shape, next_obs.shape", obs.shape, next_obs.shape)
+        grid_state = obs.long().to(self.device)
+        text_state = torch.from_numpy(get_text_state(grid_state, self.indexed_embedding_map)).float().to(self.device)
+
+        fused = self.fusion((grid_state, text_state))
+
+        grid_state = next_obs.long().to(self.device)
+        text_state = torch.from_numpy(get_text_state(grid_state, self.indexed_embedding_map)).float().to(self.device)
+
+        next_fused = self.fusion((grid_state, text_state))
+        # print("next_fused.shape", next_fused.shape)
+
+        dist = self.actor(next_fused)
         next_action = dist.rsample()
+
         log_prob = dist.log_prob(next_action).sum(-1, keepdim=True)
-        target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
+        target_Q1, target_Q2 = self.critic_target(next_fused, next_action)
         target_V = torch.min(target_Q1,
                              target_Q2) - self.alpha.detach() * log_prob
         target_Q = reward + (not_done * self.discount * target_V)
         target_Q = target_Q.detach()
 
         # get current Q estimates
-        current_Q1, current_Q2 = self.critic(obs, action)
+        current_Q1, current_Q2 = self.critic(fused, action)
         critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(
             current_Q2, target_Q)
         logger.log('train_critic/loss', critic_loss, step)
 
-        # Optimize the critic
+        # Optimize the critic and fusion model
+        self.fusion_optimizer.zero_grad()
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
-
+        self.fusion_optimizer.step()
         self.critic.log(logger, step)
 
     def update_actor_and_alpha(self, obs, logger, step):
-        dist = self.actor(obs)
+        grid_state = obs.long().to(self.device)
+        text_state = torch.from_numpy(get_text_state(grid_state, self.indexed_embedding_map)).float().to(self.device)
+
+        fused = self.fusion((grid_state, text_state))
+        dist = self.actor(fused)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
-        actor_Q1, actor_Q2 = self.critic(obs, action)
+        actor_Q1, actor_Q2 = self.critic(fused, action)
 
         actor_Q = torch.min(actor_Q1, actor_Q2)
         actor_loss = (self.alpha.detach() * log_prob - actor_Q).mean()
@@ -112,9 +161,11 @@ class SACAgent(Agent):
         logger.log('train_actor/entropy', -log_prob.mean(), step)
 
         # optimize the actor
+        self.fusion_optimizer.zero_grad()
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
+        self.fusion_optimizer.step()
 
         self.actor.log(logger, step)
 
@@ -130,7 +181,7 @@ class SACAgent(Agent):
     def update(self, replay_buffer, logger, step):
         obs, action, reward, next_obs, not_done, not_done_no_max = replay_buffer.sample(
             self.batch_size)
-
+        # print(type(obs), type(next_obs), obs.shape, next_obs.shape)
         logger.log('train/batch_reward', reward.mean(), step)
 
         self.update_critic(obs, action, reward, next_obs, not_done_no_max,
