@@ -30,6 +30,12 @@ This will produce `exp` folder, where all the outputs are going to be stored inc
 ```
 tensorboard --logdir exp
 ```
+## Instructions (bomberman)
+To train an SAC agent on the `cheetah run` task run:
+```
+python train.py
+```
+This will produce `exp` folder, where all the outputs are going to be stored including train/eval logs, tensorboard blobs, and evaluation episode videos.
 
 ## Results
 An extensive benchmarking of SAC on the DM Control Suite against D4PG. We plot an average performance of SAC over 5 seeds together with p95 confidence intervals. Importantly, we keep the hyperparameters fixed across all the tasks. Note that results for D4PG are reported after 10^8 steps and taken from the original paper.
