@@ -23,6 +23,12 @@ GRID_COLS = 16
 GRID_ROWS = 16
 AVATAR_VALUE = 1
 
+import imageio
+
+from scipy import misc
+misc.imread = imageio.imread
+
+
 def get_grid_state(env):
     grid = env.env.GVGAI.sso.observationGrid
 

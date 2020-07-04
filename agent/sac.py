@@ -7,8 +7,12 @@ import pickle
 
 from agent import Agent
 import utils
-
 import hydra
+
+import imageio
+
+from scipy import misc
+misc.imread = imageio.imread
 
 def get_indexed_embeddings(obj_id_to_embedding, vocab_size):
     embed_size = len(list(obj_id_to_embedding.items())[0][1])
