@@ -62,6 +62,9 @@ def make_env(env_name):
     )
     return env
 
+def softmax(x):
+    return np.exp(x)/sum(np.exp(x))
+
 
 class Workspace(object):
     def __init__(self, cfg):
@@ -81,6 +84,7 @@ class Workspace(object):
         self.max_episode_steps = cfg.max_episode_steps
 
         cfg.agent.params.obs_dim = self.observation_space_shape
+        # SET action_dim = env.action_space.n
         cfg.agent.params.action_dim = (self.env.action_space.n)
         cfg.agent.params.action_range = [
             float(0), float(self.env.action_space.n)
@@ -113,8 +117,8 @@ class Workspace(object):
                 with utils.eval_mode(self.agent):
                     action_vec = self.agent.act(obs, sample=False)
 
-                # TODO: transform action_vec to action
-                action = np.random.randint(self.env.action_space.n)
+                # TRANSFORM action_vec to action
+                action = self.cont_to_disc(action_vec)
                 step_count += 1
                 obs, reward, done, _ = self.env.step(action)
                 # self.video_recorder.record(self.env)
@@ -126,6 +130,14 @@ class Workspace(object):
         self.logger.log('eval/episode_reward', average_episode_reward,
                         self.step)
         self.logger.dump(self.step)
+
+    def cont_to_disc(self, action_vec):
+        # action_vec shape 1 x k, where k == env.action_space.n
+        # print(action_vec.shape)
+        # print(type(action_vec))
+        action_vec_softmax = softmax(action_vec)
+        disc_action = list(np.random.multinomial(1, action_vec_softmax, size=1)[0]).index(1)
+        return disc_action
 
     def run(self):
         episode, episode_reward, done = 0, 0, True
@@ -159,13 +171,13 @@ class Workspace(object):
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
-                action_vec = np.random.normal(0, 1, self.env.action_space.n)
+                action_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n))
             else:
                 with utils.eval_mode(self.agent):
                     action_vec = self.agent.act(obs, sample=True)
 
             # TODO: transform action_vec into action
-            action = np.random.randint(self.env.action_space.n)
+            action = self.cont_to_disc(action_vec)
             # print("before update")
             # run training update
             if self.step >= self.cfg.num_seed_steps:
@@ -181,7 +193,7 @@ class Workspace(object):
             done_no_max = 0 if episode_step + 1 == self.max_episode_steps else done
             episode_reward += reward
 
-            self.replay_buffer.add(obs, action, reward, next_obs, done,
+            self.replay_buffer.add(obs, action_vec, reward, next_obs, done,
                                    done_no_max)
 
             obs = next_obs

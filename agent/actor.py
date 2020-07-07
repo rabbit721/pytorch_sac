@@ -44,6 +44,7 @@ class SquashedNormal(pyd.transformed_distribution.TransformedDistribution):
         self.scale = scale
 
         self.base_dist = pyd.Normal(loc, scale)
+
         transforms = [TanhTransform()]
         super().__init__(self.base_dist, transforms)
 
@@ -71,7 +72,7 @@ class DiagGaussianActor(nn.Module):
         self.apply(utils.weight_init)
 
     def forward(self, fused):
-        # print("fused.shape", fused.shape)
+        # print("type(fused)", type(fused))
         mu, log_std = self.trunk(fused).chunk(2, dim=-1)
 
         # constrain log_std inside [log_std_min, log_std_max]
@@ -84,8 +85,9 @@ class DiagGaussianActor(nn.Module):
 
         self.outputs['mu'] = mu
         self.outputs['std'] = std
-
+        # print(type(std), type(mu))
         dist = SquashedNormal(mu, std)
+        # print(type(dist))
         return dist
 
     def log(self, logger, step):

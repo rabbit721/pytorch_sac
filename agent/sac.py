@@ -6,6 +6,7 @@ import math
 import pickle
 
 from agent import Agent
+
 import utils
 import hydra
 
@@ -113,7 +114,7 @@ class SACAgent(Agent):
         # assert action.ndim == 2 and action.shape[0] == 1
         return utils.to_np(action[0])
 
-    def update_critic(self, obs, action, reward, next_obs, not_done, logger,
+    def update_critic(self, obs, action_vec, reward, next_obs, not_done, logger,
                       step):
         # print("obs.shape, next_obs.shape", obs.shape, next_obs.shape)
         grid_state = obs.long().to(self.device)
@@ -128,17 +129,17 @@ class SACAgent(Agent):
         # print("next_fused.shape", next_fused.shape)
 
         dist = self.actor(next_fused)
-        next_action = dist.rsample()
+        next_action_vec = dist.rsample()
 
-        log_prob = dist.log_prob(next_action).sum(-1, keepdim=True)
-        target_Q1, target_Q2 = self.critic_target(next_fused, next_action)
+        log_prob = dist.log_prob(next_action_vec).sum(-1, keepdim=True)
+        target_Q1, target_Q2 = self.critic_target(next_fused, next_action_vec)
         target_V = torch.min(target_Q1,
                              target_Q2) - self.alpha.detach() * log_prob
         target_Q = reward + (not_done * self.discount * target_V)
         target_Q = target_Q.detach()
 
         # get current Q estimates
-        current_Q1, current_Q2 = self.critic(fused, action)
+        current_Q1, current_Q2 = self.critic(fused, action_vec)
         critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(
             current_Q2, target_Q)
         logger.log('train_critic/loss', critic_loss, step)
@@ -187,12 +188,12 @@ class SACAgent(Agent):
             self.log_alpha_optimizer.step()
 
     def update(self, replay_buffer, logger, step):
-        obs, action, reward, next_obs, not_done, not_done_no_max = replay_buffer.sample(
+        obs, action_vec, reward, next_obs, not_done, not_done_no_max = replay_buffer.sample(
             self.batch_size)
         # print(type(obs), type(next_obs), obs.shape, next_obs.shape)
         logger.log('train/batch_reward', reward.mean(), step)
 
-        self.update_critic(obs, action, reward, next_obs, not_done_no_max,
+        self.update_critic(obs, action_vec, reward, next_obs, not_done_no_max,
                            logger, step)
 
         if step % self.actor_update_frequency == 0:
