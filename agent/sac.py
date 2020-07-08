@@ -145,11 +145,9 @@ class SACAgent(Agent):
         logger.log('train_critic/loss', critic_loss, step)
 
         # Optimize the critic and fusion model
-        self.fusion_optimizer.zero_grad()
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
-        self.fusion_optimizer.step()
         self.critic.log(logger, step)
 
     def update_actor_and_alpha(self, obs, logger, step):
@@ -170,11 +168,10 @@ class SACAgent(Agent):
         logger.log('train_actor/entropy', -log_prob.mean(), step)
 
         # optimize the actor
-        self.fusion_optimizer.zero_grad()
+
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
-        self.fusion_optimizer.step()
 
         self.actor.log(logger, step)
 
@@ -193,6 +190,7 @@ class SACAgent(Agent):
         # print(type(obs), type(next_obs), obs.shape, next_obs.shape)
         logger.log('train/batch_reward', reward.mean(), step)
 
+        self.fusion_optimizer.zero_grad()
         self.update_critic(obs, action_vec, reward, next_obs, not_done_no_max,
                            logger, step)
 
@@ -202,3 +200,4 @@ class SACAgent(Agent):
         if step % self.critic_target_update_frequency == 0:
             utils.soft_update_params(self.critic, self.critic_target,
                                      self.critic_tau)
+        self.fusion_optimizer.step()
