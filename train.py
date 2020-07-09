@@ -120,7 +120,8 @@ class Workspace(object):
                 # TRANSFORM action_vec to action
                 action = self.cont_to_disc(action_vec)
                 step_count += 1
-                obs, reward, done, _ = self.env.step(action)
+                _, reward, done, _ = self.env.step(action)
+                obs = get_grid_state(self.env)
                 # self.video_recorder.record(self.env)
                 episode_reward += reward
 
@@ -185,11 +186,11 @@ class Workspace(object):
             # print("after update")
             # print(action_vec.shape, type(action_vec), action_vec)
             _, reward, done, _ = self.env.step(action)
-            # if done:
-            #    print("done")
+            if done:
+               print("done")
             next_obs = get_grid_state(self.env)
             # allow infinite bootstrap
-            done = float(done)
+            done = float(done) or episode_step + 1 == self.max_episode_steps
             done_no_max = 0 if episode_step + 1 == self.max_episode_steps else done
             episode_reward += reward
 
