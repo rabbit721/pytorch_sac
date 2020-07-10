@@ -165,7 +165,7 @@ class Workspace(object):
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
-                latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n)).float()
+                latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n)).float().to(self.device)
             else:
                 with utils.eval_mode(self.agent):
                     latent_vec = self.agent.act(obs, sample=True).float()
@@ -188,7 +188,7 @@ class Workspace(object):
             done_no_max = 0 if episode_step + 1 == self.max_episode_steps else done
             episode_reward += reward
 
-            self.replay_buffer.add(obs, latent_vec, action, reward, next_obs, done,
+            self.replay_buffer.add(obs, latent_vec.detach().cpu().numpy(), action.item(), reward, next_obs, done,
                                    done_no_max)
 
             self.agent.approximate(self.replay_buffer)

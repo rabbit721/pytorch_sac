@@ -237,9 +237,9 @@ class ActRepAgent(Agent):
         next_fusion = self.fusion((next_grid, next_text))
         Et = self.approxg((prev_fusion, next_fusion))
         At = self.decoderf(Et)
-
+        # print(At.device)
         hist = defaultdict(list)
-        etcounter = defaultdict(int)
+        etcounter = dict()
         # print("obs.shape", obs.shape, "At.shape", At.shape)
         for i in range(obs.shape[0]):
             state, next_state = obs[i].detach(), next_obs[i].detach()
@@ -248,17 +248,18 @@ class ActRepAgent(Agent):
             hist[string_rep].append(int(action[i].detach().item()))
             etcounter[string_rep] = At[i, :]
 
-        total_loss = torch.zeros(1)
+        total_loss = torch.zeros(1).to(At.device)
         for string_rep, actions in hist.items():
             state = np.fromstring(string_rep.split(";")[0], dtype=int, sep=' ')
             next_state = np.fromstring(string_rep.split(";")[1], dtype=int, sep=' ')
             counts = Counter(actions)
+            # print(counts)
 
             action_prob = etcounter[string_rep]
-
+            # print(action_prob.device)
             total_act = len(actions)
 
-            curr_loss = torch.zeros(1)
+            curr_loss = torch.zeros(1).to(At.device)
             for act in counts:
                 curr_loss += counts[act] * torch.log(action_prob[act])
 
