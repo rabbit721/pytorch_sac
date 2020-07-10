@@ -49,7 +49,7 @@ class ReplayBuffer(object):
         not_dones_no_max = torch.as_tensor(self.not_dones_no_max[idxs],
                                            device=self.device)
 
-        return obses, actions, rewards, next_obses, not_dones, not_dones_no_max
+        return obses, latent_vecs, actions, rewards, next_obses, not_dones, not_dones_no_max
 
     def get_latest_batch(self, batch_size):
         if self.idx <= batch_size:

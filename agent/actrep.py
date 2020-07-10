@@ -43,7 +43,8 @@ class ActRepAgent(Agent):
     """SAC algorithm."""
     def __init__(self, obj_id_to_embedding_file, vocab_size,
                  state_embed_size, text_embed_size, obs_dim,
-                 action_range, action_dim, critic_cfg, actor_cfg,
+                 action_range, action_dim, latent_dim,
+                 critic_cfg, actor_cfg,
                  fusion_cfg, approxg_cfg, decoderf_cfg,
                  discount, init_temperature, fusion_lr,
                  fusion_betas, alpha_lr, alpha_betas,
@@ -228,7 +229,7 @@ class ActRepAgent(Agent):
 
     def approximate(self, replay_buffer):
         obs, action_vec, action, reward, next_obs, not_done, not_done_no_max = replay_buffer.get_latest_batch(self.batch_size)
-        prev_grid, next_grid = obs.long().to(self.device), next_obs.to(self.device)
+        prev_grid, next_grid = obs.long().to(self.device), next_obs.long().to(self.device)
         prev_text = torch.from_numpy(get_text_state(prev_grid, self.indexed_embedding_map)).float().to(self.device)
         next_text = torch.from_numpy(get_text_state(next_grid, self.indexed_embedding_map)).float().to(self.device)
 
@@ -239,8 +240,8 @@ class ActRepAgent(Agent):
 
         hist = defaultdict(list)
         etcounter = defaultdict(int)
-        print("obs.shape", obs.shape, "At.shape", At.shape)
-        for i in range(self.batch_size):
+        # print("obs.shape", obs.shape, "At.shape", At.shape)
+        for i in range(obs.shape[0]):
             state, next_state = obs[i].detach(), next_obs[i].detach()
             string_rep = " ".join(map(str, state.flatten())) + "; " + \
                          " ".join(map(str, next_state.flatten()))
@@ -249,8 +250,8 @@ class ActRepAgent(Agent):
 
         total_loss = torch.zeros(1)
         for string_rep, actions in hist.items():
-            state = np.from_string(string_rep.split(";")[0])
-            next_state = np.from_string(string_rep.split(";")[1])
+            state = np.fromstring(string_rep.split(";")[0], dtype=int, sep=' ')
+            next_state = np.fromstring(string_rep.split(";")[1], dtype=int, sep=' ')
             counts = Counter(actions)
 
             action_prob = etcounter[string_rep]

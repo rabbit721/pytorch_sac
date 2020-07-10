@@ -91,10 +91,10 @@ class Workspace(object):
         ]
         self.agent = hydra.utils.instantiate(cfg.agent)
         self.replay_buffer = ReplayBuffer(self.observation_space_shape,
-                                          (cfg.agent.latent_dim),
+                                          (cfg.agent.params.latent_dim),
                                           int(cfg.replay_buffer_capacity),
                                           self.device)
-        assert(self.batch_size <= cfg.replay_buffer_capacity)
+        assert(cfg.agent.params.batch_size <= cfg.replay_buffer_capacity)
         '''
         self.video_recorder = VideoRecorder(
             self.work_dir if cfg.save_video else None)
@@ -117,7 +117,7 @@ class Workspace(object):
                     latent_vec = self.agent.act(obs, sample=False)
 
                 # TRANSFORM latent_vec to action
-                action, action_prob = self.agent.cont_to_prob(torch.from_numpy(latent_vec).to(self.device))
+                action, action_prob = self.agent.cont_to_prob(latent_vec)
                 step_count += 1
                 _, reward, done, _ = self.env.step(action)
                 obs = get_grid_state(self.env)
@@ -165,13 +165,13 @@ class Workspace(object):
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
-                latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n))
+                latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n)).float()
             else:
                 with utils.eval_mode(self.agent):
-                    latent_vec = self.agent.act(obs, sample=True)
+                    latent_vec = self.agent.act(obs, sample=True).float()
 
             # TODO: transform latent_vec into action
-            action, action_prob = self.agent.cont_to_prob(torch.from_numpy(latent_vec).to(self.device))
+            action, action_prob = self.agent.cont_to_prob(latent_vec)
             # print("before update")
             # run training update
             if self.step >= self.cfg.num_seed_steps:
@@ -204,6 +204,7 @@ class Workspace(object):
 
 @hydra.main(config_path='config/train-actrep.yaml', strict=True)
 def main(cfg):
+    torch.set_default_tensor_type(torch.FloatTensor)
     workspace = Workspace(cfg)
     workspace.run()
 

@@ -14,8 +14,10 @@ class Approximator(nn.Module):
         self.linear_module = utils.mlp(fusion_dim * 2, hidden_dim, latent_dim,
                                        hidden_depth)
 
-    def forward(self, (st, stp1)):
-        return self.linear_module(torch.cat(st, stp1))
+    def forward(self, state_pair):
+        (st, stp1) = state_pair
+        # print(torch.cat((st, stp1), dim=1).shape)
+        return self.linear_module(torch.cat((st, stp1), dim=1))
 
 
 class Decoder(nn.Module):
@@ -27,5 +29,6 @@ class Decoder(nn.Module):
 
     def forward(self, cont_vec):
         conv_vec = self.linear_module(cont_vec)
-        prob = F.softmax(cont_vec, dim=len(logit))
+        prob = F.softmax(cont_vec, dim=0)
+        # print(prob)
         return prob
