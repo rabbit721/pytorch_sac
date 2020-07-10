@@ -4,7 +4,7 @@ import torch
 
 class ReplayBuffer(object):
     """Buffer to store environment transitions."""
-    def __init__(self, obs_shape, action_shape, capacity, device):
+    def __init__(self, obs_shape, latent_dim, capacity, device):
         self.capacity = capacity
         self.device = device
 
@@ -13,7 +13,8 @@ class ReplayBuffer(object):
 
         self.obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
         self.next_obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
-        self.actions = np.empty((capacity, action_shape), dtype=np.float32)
+        self.latent_vecs = np.empty((capacity, latent_dim), dtype=np.float32)
+        self.actions = np.empty((capacity, 1), dtype=np.int32)
         self.rewards = np.empty((capacity, 1), dtype=np.float32)
         self.not_dones = np.empty((capacity, 1), dtype=np.float32)
         self.not_dones_no_max = np.empty((capacity, 1), dtype=np.float32)
@@ -25,8 +26,9 @@ class ReplayBuffer(object):
     def __len__(self):
         return self.capacity if self.full else self.idx
 
-    def add(self, obs, action, reward, next_obs, done, done_no_max):
+    def add(self, obs, latent_vec, action, reward, next_obs, done, done_no_max):
         np.copyto(self.obses[self.idx], obs)
+        np.copyto(self.latent_vecs[self.idx], latent_vec)
         np.copyto(self.actions[self.idx], action)
         np.copyto(self.rewards[self.idx], reward)
         np.copyto(self.next_obses[self.idx], next_obs)
@@ -36,12 +38,9 @@ class ReplayBuffer(object):
         self.idx = (self.idx + 1) % self.capacity
         self.full = self.full or self.idx == 0
 
-    def sample(self, batch_size):
-        idxs = np.random.randint(0,
-                                 self.capacity if self.full else self.idx,
-                                 size=batch_size)
-
+    def _tensor_from_idxs(self, idxs):
         obses = torch.as_tensor(self.obses[idxs], device=self.device).float()
+        latent_vecs = torch.as_tensor(self.latent_vecs[idxs], device=self.device)
         actions = torch.as_tensor(self.actions[idxs], device=self.device)
         rewards = torch.as_tensor(self.rewards[idxs], device=self.device)
         next_obses = torch.as_tensor(self.next_obses[idxs],
@@ -51,3 +50,21 @@ class ReplayBuffer(object):
                                            device=self.device)
 
         return obses, actions, rewards, next_obses, not_dones, not_dones_no_max
+
+    def get_latest_batch(self, batch_size):
+        if self.idx <= batch_size:
+            if self.full:
+                idxs = np.array([i for i in range(self.idx)] \
+                                 + [self.capacity - i - 1 for i in range(batch_size - idx)])
+            else:
+                idxs = np.array([i for i in range(self.idx)])
+        else:
+            idxs = np.arange(self.idx - batch_size, self.idx)
+        return self._tensor_from_idxs(idxs)
+
+    def sample(self, batch_size):
+        idxs = np.random.randint(0,
+                                 self.capacity if self.full else self.idx,
+                                 size=batch_size)
+
+        return self._tensor_from_idxs(idxs)

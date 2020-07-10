@@ -1,0 +1,32 @@
+defaults:
+    - agent: actrep
+
+env: gvgai-bombermanJie-lvl3-v0
+# this needs to be specified manually
+experiment: test_exp
+
+num_train_steps: 1e5 # 1e6
+max_episode_steps: 40
+replay_buffer_capacity: 5000 # ${num_train_steps}
+
+num_seed_steps: 3000 #5000
+
+eval_frequency: 100 # 10000
+num_eval_episodes: 2
+
+# logger
+log_frequency: 100 # 10000
+log_save_tb: true
+
+# video recorder
+save_video: true
+
+
+seed: 1
+
+
+# hydra configuration
+hydra:
+    name: ${env}
+    run:
+        dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}

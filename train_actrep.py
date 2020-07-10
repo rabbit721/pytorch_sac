@@ -90,12 +90,11 @@ class Workspace(object):
             float(0), float(self.env.action_space.n)
         ]
         self.agent = hydra.utils.instantiate(cfg.agent)
-
         self.replay_buffer = ReplayBuffer(self.observation_space_shape,
-                                          (self.env.action_space.n),
+                                          (cfg.agent.latent_dim),
                                           int(cfg.replay_buffer_capacity),
                                           self.device)
-
+        assert(self.batch_size <= cfg.replay_buffer_capacity)
         '''
         self.video_recorder = VideoRecorder(
             self.work_dir if cfg.save_video else None)
@@ -115,10 +114,10 @@ class Workspace(object):
             step_count = 0
             while not done and step_count < self.max_episode_steps:
                 with utils.eval_mode(self.agent):
-                    action_vec = self.agent.act(obs, sample=False)
+                    latent_vec = self.agent.act(obs, sample=False)
 
-                # TRANSFORM action_vec to action
-                action = self.cont_to_disc(action_vec)
+                # TRANSFORM latent_vec to action
+                action, action_prob = self.agent.cont_to_prob(torch.from_numpy(latent_vec).to(self.device))
                 step_count += 1
                 _, reward, done, _ = self.env.step(action)
                 obs = get_grid_state(self.env)
@@ -132,17 +131,10 @@ class Workspace(object):
                         self.step)
         self.logger.dump(self.step)
 
-    def cont_to_disc(self, action_vec):
-        # action_vec shape 1 x k, where k == env.action_space.n
-        # print(action_vec.shape)
-        # print(type(action_vec))
-        action_vec_softmax = softmax(action_vec)
-        disc_action = list(np.random.multinomial(1, action_vec_softmax, size=1)[0]).index(1)
-        return disc_action
-
     def run(self):
         episode, episode_reward, done = 0, 0, True
         start_time = time.time()
+        rewards = []
         while self.step < self.cfg.num_train_steps:
             if done:
                 if self.step > 0:
@@ -157,6 +149,7 @@ class Workspace(object):
                     self.logger.log('eval/episode', episode, self.step)
                     self.evaluate()
 
+                rewards.append(episode_reward)
                 self.logger.log('train/episode_reward', episode_reward,
                                 self.step)
 
@@ -172,38 +165,44 @@ class Workspace(object):
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
-                action_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n))
+                latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n))
             else:
                 with utils.eval_mode(self.agent):
-                    action_vec = self.agent.act(obs, sample=True)
+                    latent_vec = self.agent.act(obs, sample=True)
 
-            # TODO: transform action_vec into action
-            action = self.cont_to_disc(action_vec)
+            # TODO: transform latent_vec into action
+            action, action_prob = self.agent.cont_to_prob(torch.from_numpy(latent_vec).to(self.device))
             # print("before update")
             # run training update
             if self.step >= self.cfg.num_seed_steps:
                 self.agent.update(self.replay_buffer, self.logger, self.step)
+
             # print("after update")
-            # print(action_vec.shape, type(action_vec), action_vec)
+            # print(latent_vec.shape, type(latent_vec), latent_vec)
             _, reward, done, _ = self.env.step(action)
-            if done:
-               print("done")
+            # if done:
+            #    print("done")
             next_obs = get_grid_state(self.env)
             # allow infinite bootstrap
             done = float(done) or episode_step + 1 == self.max_episode_steps
             done_no_max = 0 if episode_step + 1 == self.max_episode_steps else done
             episode_reward += reward
 
-            self.replay_buffer.add(obs, action_vec, reward, next_obs, done,
+            self.replay_buffer.add(obs, latent_vec, action, reward, next_obs, done,
                                    done_no_max)
 
+            self.agent.approximate(self.replay_buffer)
             obs = next_obs
             episode_step += 1
             self.step += 1
+
+            if self.step % 100 == 0:
+                print("----- Mean Ep Reward ----- ", sum(rewards)/100)
+                rewards = []
             # print("self.step", self.step)
 
 
-@hydra.main(config_path='config/train.yaml', strict=True)
+@hydra.main(config_path='config/train-actrep.yaml', strict=True)
 def main(cfg):
     workspace = Workspace(cfg)
     workspace.run()

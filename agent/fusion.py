@@ -18,7 +18,6 @@ class Fusion(nn.Module):
         #self.conv3 = nn.Conv2d(32, 32, kernel_size=2, stride=2)
         self.embed = nn.Embedding(vocab_size, state_embed_size)
 
-
     def forward(self, inputs):
         x, input_inst = inputs
         # print(x.shape, input_inst.shape)
