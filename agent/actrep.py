@@ -264,6 +264,8 @@ class ActRepAgent(Agent):
                 curr_loss += counts[act] * torch.log(action_prob[act])
 
             total_loss += (curr_loss / total_act)
+
+        total_loss = -total_loss
         print("--- approximator loss: ", total_loss.item(), "---")
 
         self.approxg_optimizer.zero_grad()

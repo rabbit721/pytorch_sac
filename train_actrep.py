@@ -168,7 +168,7 @@ class Workspace(object):
                 latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n)).float().to(self.device)
             else:
                 with utils.eval_mode(self.agent):
-                    latent_vec = self.agent.act(obs, sample=True).float()
+                    latent_vec = torch.from_numpy(self.agent.act(obs, sample=True)).float().to(self.device)
 
             # TODO: transform latent_vec into action
             action, action_prob = self.agent.cont_to_prob(latent_vec)
