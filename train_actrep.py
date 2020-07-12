@@ -117,7 +117,8 @@ class Workspace(object):
                     latent_vec = self.agent.act(obs, sample=False)
 
                 # TRANSFORM latent_vec to action
-                action, action_prob = self.agent.cont_to_prob(latent_vec)
+
+                action, action_prob = self.agent.cont_to_prob(torch.from_numpy(latent_vec).float().to(self.device))
                 step_count += 1
                 _, reward, done, _ = self.env.step(action)
                 obs = get_grid_state(self.env)
