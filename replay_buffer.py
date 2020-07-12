@@ -55,7 +55,7 @@ class ReplayBuffer(object):
         if self.idx <= batch_size:
             if self.full:
                 idxs = np.array([i for i in range(self.idx)] \
-                                 + [self.capacity - i - 1 for i in range(batch_size - idx)])
+                                 + [self.capacity - i - 1 for i in range(batch_size - self.idx)])
             else:
                 idxs = np.array([i for i in range(self.idx)])
         else:
