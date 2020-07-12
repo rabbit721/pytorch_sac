@@ -30,5 +30,5 @@ class Decoder(nn.Module):
     def forward(self, cont_vec):
         conv_vec = self.linear_module(cont_vec)
         prob = F.softmax(cont_vec, dim=0)
-        # print(prob)
+        print("#### action prob: {} ####".format(prob))
         return prob
