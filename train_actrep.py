@@ -90,6 +90,7 @@ class Workspace(object):
             float(0), float(self.env.action_space.n)
         ]
         self.agent = hydra.utils.instantiate(cfg.agent)
+        print(self.agent.decoderf)
         self.replay_buffer = ReplayBuffer(self.observation_space_shape,
                                           (cfg.agent.params.latent_dim),
                                           int(cfg.replay_buffer_capacity),
@@ -114,7 +115,7 @@ class Workspace(object):
             step_count = 0
             while not done and step_count < self.max_episode_steps:
                 with utils.eval_mode(self.agent):
-                    latent_vec = self.agent.act(obs, sample=False)
+                    latent_vec = self.agent.act(obs.unsqueeze(0), sample=False)
 
                 # TRANSFORM latent_vec to action
 
@@ -166,10 +167,10 @@ class Workspace(object):
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
-                latent_vec = torch.from_numpy(np.random.normal(0, 1, self.env.action_space.n)).float().to(self.device)
+                latent_vec = torch.from_numpy(np.random.normal(0, 1, (1, self.env.action_space.n))).float().to(self.device)
             else:
                 with utils.eval_mode(self.agent):
-                    latent_vec = torch.from_numpy(self.agent.act(obs, sample=True)).float().to(self.device)
+                    latent_vec = torch.from_numpy(self.agent.act(obs.unsqueeze(0), sample=True)).float().to(self.device)
 
             # TODO: transform latent_vec into action
             action, action_prob = self.agent.cont_to_prob(latent_vec)
@@ -177,6 +178,12 @@ class Workspace(object):
             # run training update
             if self.step >= self.cfg.num_seed_steps:
                 self.agent.update(self.replay_buffer, self.logger, self.step)
+
+            '''
+            for param in self.agent.decoderf.parameters():
+                assert(param.requires_grad)
+                print(param.name, param.data)
+            '''
 
             # print("after update")
             # print(latent_vec.shape, type(latent_vec), latent_vec)

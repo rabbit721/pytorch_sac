@@ -28,7 +28,10 @@ class Decoder(nn.Module):
                                        hidden_depth)
 
     def forward(self, cont_vec):
-        conv_vec = self.linear_module(cont_vec)
-        prob = F.softmax(cont_vec, dim=0)
-        print("#### action prob: {} ####".format(prob))
+        # print(cont_vec)
+        conv_vec_ln = self.linear_module(cont_vec)
+        # print(conv_vec_ln)
+        prob = F.softmax(conv_vec_ln, dim=1)
+        if prob.shape[0] == 1:
+            print("#### action prob: {} ####".format(prob))
         return prob

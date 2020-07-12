@@ -17,11 +17,11 @@ agent:
     decoderf_cfg: ${decoderf}
     discount: 0.99
     init_temperature: 0.1
-    fusion_lr: 1e-4
+    fusion_lr: 1e-3
     fusion_betas: [0.9, 0.999]
     alpha_lr: 1e-3
     alpha_betas: [0.9, 0.999]
-    actor_lr: 1e-4
+    actor_lr: 1e-3
     actor_betas: [0.9, 0.999]
     actor_update_frequency: 1
     critic_lr: 1e-3
