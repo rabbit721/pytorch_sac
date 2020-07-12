@@ -115,7 +115,7 @@ class Workspace(object):
             step_count = 0
             while not done and step_count < self.max_episode_steps:
                 with utils.eval_mode(self.agent):
-                    latent_vec = self.agent.act(obs.unsqueeze(0), sample=False)
+                    latent_vec = self.agent.act(obs, sample=False)
 
                 # TRANSFORM latent_vec to action
 
@@ -170,7 +170,7 @@ class Workspace(object):
                 latent_vec = torch.from_numpy(np.random.normal(0, 1, (1, self.env.action_space.n))).float().to(self.device)
             else:
                 with utils.eval_mode(self.agent):
-                    latent_vec = torch.from_numpy(self.agent.act(obs.unsqueeze(0), sample=True)).float().to(self.device)
+                    latent_vec = torch.from_numpy(self.agent.act(obs, sample=True)).float().to(self.device)
 
             # TODO: transform latent_vec into action
             action, action_prob = self.agent.cont_to_prob(latent_vec)

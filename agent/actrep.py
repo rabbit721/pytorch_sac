@@ -132,7 +132,7 @@ class ActRepAgent(Agent):
         action = dist.sample() if sample else dist.mean
         action = action.clamp(*self.action_range)
         # assert action.ndim == 2 and action.shape[0] == 1
-        return utils.to_np(action[0])
+        return utils.to_np(action)
 
     def cont_to_prob(self, latent_vec):
         prob = self.decoderf(latent_vec)
