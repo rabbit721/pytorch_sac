@@ -196,8 +196,8 @@ class Workspace(object):
             episode_step += 1
             self.step += 1
 
-            if self.step % 100 == 0:
-                print("----- Mean Ep Reward ----- ", sum(rewards)/100)
+            if len(rewards) > 10:
+                print("----- Mean Ep Reward ----- ", sum(rewards)/len(rewards))
                 rewards = []
             # print("self.step", self.step)
 
