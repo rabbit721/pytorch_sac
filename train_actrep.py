@@ -24,6 +24,7 @@ GRID_ROWS = 16
 AVATAR_VALUE = 1
 
 import imageio
+import random
 
 from scipy import misc
 misc.imread = imageio.imread
@@ -174,6 +175,8 @@ class Workspace(object):
 
             # TODO: transform latent_vec into action
             action, action_prob = self.agent.cont_to_prob(latent_vec)
+            if self.step < self.cfg.num_seed_steps:
+                action = torch.Tensor([random.randint(0, self.env.action_space.n-1)]).mean().long().to(self.device)
             # print("before update")
             # run training update
             if self.step >= self.cfg.num_seed_steps:
@@ -199,6 +202,8 @@ class Workspace(object):
             self.replay_buffer.add(obs, latent_vec.detach().cpu().numpy(), action.item(), reward, next_obs, done,
                                    done_no_max)
 
+            if self.step >= self.cfg.num_seed_steps:
+                self.agent.approxg.eval()
             self.agent.approximate(self.replay_buffer)
             obs = next_obs
             episode_step += 1
