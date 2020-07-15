@@ -238,34 +238,9 @@ class ActRepAgent(Agent):
         Et = self.approxg((prev_fusion, next_fusion))
         At = self.decoderf(Et)
         # print(At.device)
-        hist = defaultdict(list)
-        etcounter = dict()
-        # print("obs.shape", obs.shape, "At.shape", At.shape)
-        for i in range(obs.shape[0]):
-            state, next_state = obs[i].detach(), next_obs[i].detach()
-            string_rep = " ".join(map(str, state.flatten())) + "; " + \
-                         " ".join(map(str, next_state.flatten()))
-            hist[string_rep].append(int(action[i].detach().item()))
-            etcounter[string_rep] = At[i, :]
+        prob = At[:, action.squeeze(-1).type(torch.LongTensor)].squeeze(-1)
+        total_loss = -torch.log(prob).mean()
 
-        total_loss = torch.zeros(1).to(At.device)
-        for string_rep, actions in hist.items():
-            state = np.fromstring(string_rep.split(";")[0], dtype=int, sep=' ')
-            next_state = np.fromstring(string_rep.split(";")[1], dtype=int, sep=' ')
-            counts = Counter(actions)
-            # print(counts)
-
-            action_prob = etcounter[string_rep]
-            # print(action_prob.device)
-            total_act = len(actions)
-
-            curr_loss = torch.zeros(1).to(At.device)
-            for act in counts:
-                curr_loss += counts[act] * torch.log(action_prob[act])
-
-            total_loss += (curr_loss / total_act)
-
-        total_loss = -total_loss
         print("--- approximator loss: ", total_loss.item(), "---")
 
         self.approxg_optimizer.zero_grad()
